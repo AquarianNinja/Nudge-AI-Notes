@@ -1,0 +1,21 @@
+{
+  "sandboxId": "sbx-bot-1795263684130-rbh5",
+  "botId": "bot-1795263684130-rbh5",
+  "userId": "NB-T46L-5ZDX",
+  "storagePath": "NB-T46L-5ZDX/bot-1795263684130-rbh5",
+  "networkScope": "cited-web-and-vault",
+  "credentialScope": "scoped-token:NB-T46L-5ZDX:bot-1795263684130-rbh5",
+  "memoryEntries": [
+    {
+      "id": "mem-1795263684166-64vy",
+      "timestamp": "2026-11-21T12:21:24.166Z",
+      "summary": "Initial release run (completed): Audit Q4 ClaimCenter SLA breaches and cite sources."
+    },
+    {
+      "id": "mem-init-1795263684131",
+      "timestamp": "2026-11-21T12:21:24.131Z",
+      "summary": "Initialized isolated sandbox sbx-bot-1795263684130-rbh5 for Q4 Claims Bot (Atlas)."
+    }
+  ],
+  "updatedAt": "2026-11-21T12:21:24.166Z"
+}

@@ -1,0 +1,26 @@
+{
+  "sandboxId": "sbx-bot-1795263790474-mg07",
+  "botId": "bot-1795263790474-mg07",
+  "userId": "NB-5YVD-MCEV",
+  "storagePath": "NB-5YVD-MCEV/bot-1795263790474-mg07",
+  "networkScope": "cited-web-and-vault",
+  "credentialScope": "scoped-token:NB-5YVD-MCEV:bot-1795263790474-mg07",
+  "memoryEntries": [
+    {
+      "id": "mem-1795263791077-f3i0",
+      "timestamp": "2026-11-21T12:23:11.077Z",
+      "summary": "Manual rerun (completed): Audit Q4 ClaimCenter SLA breaches and cite sources."
+    },
+    {
+      "id": "mem-1795263790503-nwu7",
+      "timestamp": "2026-11-21T12:23:10.503Z",
+      "summary": "Initial release run (completed): Audit Q4 ClaimCenter SLA breaches and cite sources."
+    },
+    {
+      "id": "mem-init-1795263790476",
+      "timestamp": "2026-11-21T12:23:10.476Z",
+      "summary": "Initialized isolated sandbox sbx-bot-1795263790474-mg07 for Q4 Claims Bot (Atlas)."
+    }
+  ],
+  "updatedAt": "2026-11-21T12:23:11.077Z"
+}

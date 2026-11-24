@@ -1,0 +1,628 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Shared Hardened Primitives ---
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isEmailVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isVerifiedOwner(userId) {
+      return isEmailVerified() && isOwner(userId);
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isStringSized(val, minLen, maxLen) {
+      return val is string && val.size() >= minLen && val.size() <= maxLen;
+    }
+
+    function isStringListBounded(listVal, maxItems) {
+      return listVal is list &&
+        listVal.size() <= maxItems &&
+        (listVal.size() == 0 || listVal[0] is string);
+    }
+
+    function isValidDateIso(dateStr) {
+      return dateStr is string &&
+        dateStr.size() == 10 &&
+        dateStr.matches('^\\d{4}-\\d{2}-\\d{2}$');
+    }
+
+    function hasActiveUserRoot(userId) {
+      return exists(/databases/$(database)/documents/users/$(userId)) &&
+        get(/databases/$(database)/documents/users/$(userId)).data.uid == request.auth.uid;
+    }
+
+    // --- Entity Validation Blueprints ---
+    function isValidUserProfilePublic(data, userId) {
+      return data.keys().hasAll(['uid', 'displayName', 'photoURL', 'role', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['uid', 'displayName', 'photoURL', 'role', 'createdAt', 'updatedAt']) &&
+        isValidId(data.uid) &&
+        data.uid == userId &&
+        data.uid == request.auth.uid &&
+        isStringSized(data.displayName, 1, 120) &&
+        isStringSized(data.photoURL, 0, 512) &&
+        data.role == 'member' &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidUserProfilePrivate(data, userId) {
+      return data.keys().hasAll(['uid', 'email', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['uid', 'email', 'createdAt', 'updatedAt']) &&
+        isValidId(data.uid) &&
+        data.uid == userId &&
+        data.uid == request.auth.uid &&
+        isStringSized(data.email, 3, 254) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidDiaryEntry(data, userId, entryId) {
+      return data.keys().hasAll([
+          'id', 'ownerId', 'dateIso', 'dateLabel', 'timeLabel', 'title', 'content',
+          'category', 'tags', 'attachmentNames', 'createdIso', 'updatedIso', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'ownerId', 'dateIso', 'dateLabel', 'timeLabel', 'title', 'content',
+          'category', 'tags', 'attachmentNames', 'createdIso', 'updatedIso', 'createdAt', 'updatedAt'
+        ]) &&
+        isValidId(data.id) &&
+        data.id == entryId &&
+        isValidId(data.ownerId) &&
+        data.ownerId == userId &&
+        data.ownerId == request.auth.uid &&
+        isValidDateIso(data.dateIso) &&
+        isStringSized(data.dateLabel, 1, 48) &&
+        isStringSized(data.timeLabel, 1, 24) &&
+        isStringSized(data.title, 1, 180) &&
+        isStringSized(data.content, 1, 12000) &&
+        data.category in ['Focus', 'Decision', 'Blocker', 'Note'] &&
+        isStringListBounded(data.tags, 12) &&
+        isStringListBounded(data.attachmentNames, 12) &&
+        isStringSized(data.createdIso, 1, 40) &&
+        isStringSized(data.updatedIso, 1, 40) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidBackgroundTask(data, userId, taskId) {
+      return data.keys().hasAll([
+          'id', 'ownerId', 'title', 'prompt', 'cloudModelId', 'cloudModelLabel', 'cloudProviderLabel',
+          'intervalId', 'intervalLabel', 'intervalMs', 'status', 'ragEnabled', 'ragStrategyId',
+          'attachmentNames', 'runCount', 'createdAtIso', 'lastRunIso', 'nextRunIso', 'latestOutput',
+          'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'ownerId', 'title', 'prompt', 'cloudModelId', 'cloudModelLabel', 'cloudProviderLabel',
+          'intervalId', 'intervalLabel', 'intervalMs', 'status', 'ragEnabled', 'ragStrategyId',
+          'attachmentNames', 'runCount', 'createdAtIso', 'lastRunIso', 'nextRunIso', 'latestOutput',
+          'createdAt', 'updatedAt'
+        ]) &&
+        isValidId(data.id) &&
+        data.id == taskId &&
+        isValidId(data.ownerId) &&
+        data.ownerId == userId &&
+        data.ownerId == request.auth.uid &&
+        isStringSized(data.title, 1, 180) &&
+        isStringSized(data.prompt, 1, 4000) &&
+        data.cloudModelId in ['claude-3-7-sonnet', 'gemini-2-5-pro', 'gpt-4o', 'grok-3'] &&
+        isStringSized(data.cloudModelLabel, 1, 64) &&
+        isStringSized(data.cloudProviderLabel, 1, 64) &&
+        data.intervalId in ['15s', '1m', '5m', 'hourly'] &&
+        isStringSized(data.intervalLabel, 1, 48) &&
+        data.intervalMs is number && data.intervalMs >= 1000 && data.intervalMs <= 86400000 &&
+        data.status in ['running', 'paused', 'archived'] &&
+        data.ragEnabled is bool &&
+        data.ragStrategyId in ['hybrid-rrf', 'agentic', 'graph-rag', 'corrective', 'multimodal'] &&
+        isStringListBounded(data.attachmentNames, 12) &&
+        data.runCount is number && data.runCount >= 0 && data.runCount <= 1000000 &&
+        isStringSized(data.createdAtIso, 1, 40) &&
+        isStringSized(data.lastRunIso, 0, 40) &&
+        isStringSized(data.nextRunIso, 1, 40) &&
+        isStringSized(data.latestOutput, 0, 16000) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidCoreDataDoc(data, userId, docId) {
+      return data.keys().hasAll([
+          'id', 'ownerId', 'managedObjectId', 'cloudKitRecordName', 'entityName', 'title',
+          'format', 'assetKind', 'sizeKB', 'chunkCount', 'embeddingDim', 'dateAdded',
+          'updatedIso', 'summary', 'contentExcerpt', 'tags', 'syncState', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'ownerId', 'managedObjectId', 'cloudKitRecordName', 'entityName', 'title',
+          'format', 'assetKind', 'sizeKB', 'chunkCount', 'embeddingDim', 'dateAdded',
+          'updatedIso', 'summary', 'contentExcerpt', 'tags', 'syncState', 'createdAt', 'updatedAt'
+        ]) &&
+        isValidId(data.id) &&
+        data.id == docId &&
+        isValidId(data.ownerId) &&
+        data.ownerId == userId &&
+        data.ownerId == request.auth.uid &&
+        isStringSized(data.managedObjectId, 1, 200) &&
+        isStringSized(data.cloudKitRecordName, 1, 160) &&
+        data.entityName == 'CDDocument' &&
+        isStringSized(data.title, 1, 200) &&
+        data.format in ['PDF', 'TXT', 'EPUB', 'Markdown', 'Image', 'Audio', 'Note'] &&
+        data.assetKind in ['document', 'image', 'audio'] &&
+        data.sizeKB is number && data.sizeKB >= 0 && data.sizeKB <= 1000000 &&
+        data.chunkCount is number && data.chunkCount >= 0 && data.chunkCount <= 100000 &&
+        data.embeddingDim is number && data.embeddingDim >= 1 && data.embeddingDim <= 8192 &&
+        isStringSized(data.dateAdded, 1, 48) &&
+        isStringSized(data.updatedIso, 1, 40) &&
+        isStringSized(data.summary, 0, 1500) &&
+        isStringSized(data.contentExcerpt, 0, 16000) &&
+        isStringListBounded(data.tags, 15) &&
+        data.syncState in ['synced', 'local'] &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidUserPreferences(data, userId, prefId) {
+      return data.keys().hasAll([
+          'id', 'ownerId', 'activeLlmId', 'activeWhisperId', 'ttsEngine', 'offlineOnly',
+          'motionIntensity', 'hapticFeedback', 'diarization', 'autoPunctuation', 'language',
+          'autoLearnDictionary', 'liveProviderId', 'localOnly', 'activeSttModelId',
+          'activeTextModelId', 'activeDictationModeId', 'translationEnabled',
+          'translationSourceLang', 'translationTargetLang', 'historyRetention',
+          'overlayStyle', 'enableCrewPlanner', 'enableOfficeDiary', 'enableScoutFeature',
+          'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'ownerId', 'activeLlmId', 'activeWhisperId', 'ttsEngine', 'offlineOnly',
+          'motionIntensity', 'hapticFeedback', 'diarization', 'autoPunctuation', 'language',
+          'autoLearnDictionary', 'liveProviderId', 'localOnly', 'activeSttModelId',
+          'activeTextModelId', 'activeDictationModeId', 'translationEnabled',
+          'translationSourceLang', 'translationTargetLang', 'historyRetention',
+          'overlayStyle', 'enableCrewPlanner', 'enableOfficeDiary', 'enableScoutFeature',
+          'createdAt', 'updatedAt'
+        ]) &&
+        data.id == 'app' &&
+        data.id == prefId &&
+        isValidId(data.ownerId) &&
+        data.ownerId == userId &&
+        data.ownerId == request.auth.uid &&
+        isStringSized(data.activeLlmId, 1, 80) &&
+        isStringSized(data.activeWhisperId, 1, 80) &&
+        data.ttsEngine in ['on-device', 'secure-cloud'] &&
+        data.offlineOnly is bool &&
+        data.motionIntensity in ['reduced', 'standard', 'fluid'] &&
+        data.hapticFeedback is bool &&
+        data.diarization is bool &&
+        data.autoPunctuation is bool &&
+        isStringSized(data.language, 2, 24) &&
+        data.autoLearnDictionary is bool &&
+        isStringSized(data.liveProviderId, 1, 64) &&
+        data.localOnly is bool &&
+        isStringSized(data.activeSttModelId, 1, 80) &&
+        isStringSized(data.activeTextModelId, 1, 80) &&
+        isStringSized(data.activeDictationModeId, 1, 64) &&
+        data.translationEnabled is bool &&
+        isStringSized(data.translationSourceLang, 2, 32) &&
+        isStringSized(data.translationTargetLang, 2, 32) &&
+        data.historyRetention in ['forever', '30d', 'none'] &&
+        data.overlayStyle in ['capsule', 'panel'] &&
+        data.enableCrewPlanner is bool &&
+        data.enableOfficeDiary is bool &&
+        data.enableScoutFeature is bool &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidNanoUserId(nanoUserId) {
+      return nanoUserId is string &&
+        nanoUserId.size() >= 11 &&
+        nanoUserId.size() <= 16 &&
+        nanoUserId.matches('^NB-[A-Z0-9]{4}-[A-Z0-9]{4}$');
+    }
+
+    function isValidAccountIdentity(data, userId, identityDocId) {
+      return data.keys().hasAll([
+          'id', 'ownerId', 'userId', 'linkedProvider', 'createdIso', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'ownerId', 'userId', 'linkedProvider', 'createdIso', 'createdAt', 'updatedAt'
+        ]) &&
+        data.id == 'account' &&
+        data.id == identityDocId &&
+        isValidId(data.ownerId) &&
+        data.ownerId == userId &&
+        data.ownerId == request.auth.uid &&
+        isValidNanoUserId(data.userId) &&
+        data.linkedProvider in ['google', 'guest'] &&
+        isStringSized(data.createdIso, 1, 40) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidCallsign(data, userId, callsignId) {
+      return data.keys().hasAll([
+          'id', 'ownerId', 'userId', 'displayName', 'avatar', 'isActive',
+          'createdIso', 'updatedIso', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'ownerId', 'userId', 'displayName', 'avatar', 'isActive',
+          'createdIso', 'updatedIso', 'createdAt', 'updatedAt'
+        ]) &&
+        isValidId(data.id) &&
+        data.id == callsignId &&
+        isValidId(data.ownerId) &&
+        data.ownerId == userId &&
+        data.ownerId == request.auth.uid &&
+        isValidNanoUserId(data.userId) &&
+        isStringSized(data.displayName, 1, 48) &&
+        isStringSized(data.avatar, 0, 12) &&
+        data.isActive is bool &&
+        isStringSized(data.createdIso, 1, 40) &&
+        isStringSized(data.updatedIso, 1, 40) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidNanobot(data, userId, botId) {
+      return data.keys().hasAll([
+          'id', 'ownerId', 'userId', 'name', 'engine', 'styleId', 'modelId', 'taskPrompt',
+          'cadence', 'startTime', 'notificationsEnabled', 'nextRunIso', 'status', 'sandboxId',
+          'consentTimestampIso', 'createdIso', 'updatedIso', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'ownerId', 'userId', 'name', 'engine', 'styleId', 'modelId', 'taskPrompt',
+          'cadence', 'startTime', 'notificationsEnabled', 'nextRunIso', 'status', 'sandboxId',
+          'consentTimestampIso', 'createdIso', 'updatedIso', 'createdAt', 'updatedAt'
+        ]) &&
+        isValidId(data.id) &&
+        data.id == botId &&
+        isValidId(data.ownerId) &&
+        data.ownerId == userId &&
+        data.ownerId == request.auth.uid &&
+        isValidNanoUserId(data.userId) &&
+        isStringSized(data.name, 1, 60) &&
+        data.engine in ['pulse', 'atlas', 'nova'] &&
+        data.styleId in ['researcher', 'analyst', 'scheduler', 'writer', 'inbox-admin', 'developer'] &&
+        isStringSized(data.modelId, 1, 80) &&
+        isStringSized(data.taskPrompt, 1, 4000) &&
+        data.cadence in ['once', 'daily', 'weekly', 'custom'] &&
+        isStringSized(data.startTime, 1, 16) &&
+        data.notificationsEnabled is bool &&
+        isStringSized(data.nextRunIso, 0, 40) &&
+        data.status in ['idle', 'scheduled', 'running', 'paused', 'stopped', 'completed', 'failed'] &&
+        isValidId(data.sandboxId) &&
+        isStringSized(data.consentTimestampIso, 1, 40) &&
+        isStringSized(data.createdIso, 1, 40) &&
+        isStringSized(data.updatedIso, 1, 40) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidNanobotRun(data, userId, botId, runId) {
+      return data.keys().hasAll([
+          'id', 'botId', 'ownerId', 'userId', 'startedAt', 'endedAt', 'status', 'output',
+          'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'botId', 'ownerId', 'userId', 'startedAt', 'endedAt', 'status', 'output',
+          'createdAt', 'updatedAt'
+        ]) &&
+        isValidId(data.id) &&
+        data.id == runId &&
+        isValidId(data.botId) &&
+        data.botId == botId &&
+        isValidId(data.ownerId) &&
+        data.ownerId == userId &&
+        data.ownerId == request.auth.uid &&
+        isValidNanoUserId(data.userId) &&
+        isStringSized(data.startedAt, 1, 40) &&
+        isStringSized(data.endedAt, 0, 40) &&
+        data.status in ['running', 'completed', 'failed', 'stopped'] &&
+        isStringSized(data.output, 0, 16000) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    // --- Collection Match Rules ---
+    match /users/{userId} {
+      allow get: if isVerifiedOwner(userId) && isValidId(userId);
+      allow list: if false;
+      allow create: if isVerifiedOwner(userId) &&
+        isValidId(userId) &&
+        isValidUserProfilePublic(incoming(), userId) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isVerifiedOwner(userId) &&
+        isValidId(userId) &&
+        isValidUserProfilePublic(incoming(), userId) &&
+        incoming().uid == existing().uid &&
+        incoming().role == existing().role &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'updatedAt']);
+      allow delete: if false;
+
+      match /private/{docId} {
+        allow get: if isVerifiedOwner(userId) && isValidId(userId) && docId == 'profile' && hasActiveUserRoot(userId);
+        allow list: if false;
+        allow create: if isVerifiedOwner(userId) &&
+          isValidId(userId) &&
+          docId == 'profile' &&
+          isValidUserProfilePrivate(incoming(), userId) &&
+          incoming().createdAt == request.time &&
+          incoming().updatedAt == request.time &&
+          hasActiveUserRoot(userId);
+        allow update: if isVerifiedOwner(userId) &&
+          isValidId(userId) &&
+          docId == 'profile' &&
+          isValidUserProfilePrivate(incoming(), userId) &&
+          incoming().uid == existing().uid &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().updatedAt == request.time &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['email', 'updatedAt']) &&
+          hasActiveUserRoot(userId);
+        allow delete: if false;
+      }
+
+      match /diaryEntries/{entryId} {
+        allow get: if isVerifiedOwner(userId) && isValidId(userId) && isValidId(entryId) && hasActiveUserRoot(userId);
+        allow list: if isVerifiedOwner(userId) && existing().ownerId == request.auth.uid;
+        allow create: if isVerifiedOwner(userId) &&
+          isValidId(userId) &&
+          isValidId(entryId) &&
+          isValidDiaryEntry(incoming(), userId, entryId) &&
+          incoming().createdAt == request.time &&
+          incoming().updatedAt == request.time &&
+          hasActiveUserRoot(userId);
+        allow update: if isVerifiedOwner(userId) &&
+          isValidId(userId) &&
+          isValidId(entryId) &&
+          isValidDiaryEntry(incoming(), userId, entryId) &&
+          incoming().id == existing().id &&
+          incoming().ownerId == existing().ownerId &&
+          incoming().createdIso == existing().createdIso &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().updatedAt == request.time &&
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'dateIso', 'dateLabel', 'timeLabel', 'title', 'content', 'category',
+            'tags', 'attachmentNames', 'updatedIso', 'updatedAt'
+          ]) &&
+          hasActiveUserRoot(userId);
+        allow delete: if isVerifiedOwner(userId) &&
+          isValidId(userId) &&
+          isValidId(entryId) &&
+          existing().ownerId == request.auth.uid &&
+          hasActiveUserRoot(userId);
+      }
+
+      match /schedulerTasks/{taskId} {
+        allow get: if isVerifiedOwner(userId) && isValidId(userId) && isValidId(taskId) && hasActiveUserRoot(userId);
+        allow list: if isVerifiedOwner(userId) && existing().ownerId == request.auth.uid;
+        allow create: if isVerifiedOwner(userId) &&
+          isValidId(userId) &&
+          isValidId(taskId) &&
+          isValidBackgroundTask(incoming(), userId, taskId) &&
+          incoming().createdAt == request.time &&
+          incoming().updatedAt == request.time &&
+          hasActiveUserRoot(userId);
+        allow update: if isVerifiedOwner(userId) &&
+          isValidId(userId) &&
+          isValidId(taskId) &&
+          isValidBackgroundTask(incoming(), userId, taskId) &&
+          existing().status != 'archived' &&
+          incoming().id == existing().id &&
+          incoming().ownerId == existing().ownerId &&
+          incoming().createdAtIso == existing().createdAtIso &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().updatedAt == request.time &&
+          (
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'status', 'ragEnabled', 'ragStrategyId', 'runCount', 'lastRunIso',
+              'nextRunIso', 'latestOutput', 'updatedAt'
+            ]) ||
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'title', 'prompt', 'cloudModelId', 'cloudModelLabel', 'cloudProviderLabel',
+              'intervalId', 'intervalLabel', 'intervalMs', 'attachmentNames', 'updatedAt'
+            ])
+          ) &&
+          hasActiveUserRoot(userId);
+        allow delete: if isVerifiedOwner(userId) &&
+          isValidId(userId) &&
+          isValidId(taskId) &&
+          existing().ownerId == request.auth.uid &&
+          hasActiveUserRoot(userId);
+      }
+
+      match /coreDataDocuments/{docId} {
+        allow get: if isVerifiedOwner(userId) && isValidId(userId) && isValidId(docId) && hasActiveUserRoot(userId);
+        allow list: if isVerifiedOwner(userId) && existing().ownerId == request.auth.uid;
+        allow create: if isVerifiedOwner(userId) &&
+          isValidId(userId) &&
+          isValidId(docId) &&
+          isValidCoreDataDoc(incoming(), userId, docId) &&
+          incoming().createdAt == request.time &&
+          incoming().updatedAt == request.time &&
+          hasActiveUserRoot(userId);
+        allow update: if isVerifiedOwner(userId) &&
+          isValidId(userId) &&
+          isValidId(docId) &&
+          isValidCoreDataDoc(incoming(), userId, docId) &&
+          incoming().id == existing().id &&
+          incoming().ownerId == existing().ownerId &&
+          incoming().managedObjectId == existing().managedObjectId &&
+          incoming().entityName == existing().entityName &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().updatedAt == request.time &&
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'title', 'chunkCount', 'updatedIso', 'summary', 'contentExcerpt',
+            'tags', 'syncState', 'updatedAt'
+          ]) &&
+          hasActiveUserRoot(userId);
+        allow delete: if isVerifiedOwner(userId) &&
+          isValidId(userId) &&
+          isValidId(docId) &&
+          existing().ownerId == request.auth.uid &&
+          hasActiveUserRoot(userId);
+      }
+
+      match /preferences/{prefId} {
+        allow get: if isVerifiedOwner(userId) && isValidId(userId) && prefId == 'app' && hasActiveUserRoot(userId);
+        allow list: if false;
+        allow create: if isVerifiedOwner(userId) &&
+          isValidId(userId) &&
+          prefId == 'app' &&
+          isValidUserPreferences(incoming(), userId, prefId) &&
+          incoming().createdAt == request.time &&
+          incoming().updatedAt == request.time &&
+          hasActiveUserRoot(userId);
+        allow update: if isVerifiedOwner(userId) &&
+          isValidId(userId) &&
+          prefId == 'app' &&
+          isValidUserPreferences(incoming(), userId, prefId) &&
+          incoming().id == existing().id &&
+          incoming().ownerId == existing().ownerId &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().updatedAt == request.time &&
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'activeLlmId', 'activeWhisperId', 'ttsEngine', 'offlineOnly',
+            'motionIntensity', 'hapticFeedback', 'diarization', 'autoPunctuation',
+            'language', 'autoLearnDictionary', 'liveProviderId', 'localOnly',
+            'activeSttModelId', 'activeTextModelId', 'activeDictationModeId',
+            'translationEnabled', 'translationSourceLang', 'translationTargetLang',
+            'historyRetention', 'overlayStyle', 'enableCrewPlanner',
+            'enableOfficeDiary', 'enableScoutFeature', 'updatedAt'
+          ]) &&
+          hasActiveUserRoot(userId);
+        allow delete: if false;
+      }
+
+      match /identity/{identityDocId} {
+        allow get: if isVerifiedOwner(userId) && isValidId(userId) && identityDocId == 'account' && hasActiveUserRoot(userId);
+        allow list: if false;
+        allow create: if isVerifiedOwner(userId) &&
+          isValidId(userId) &&
+          identityDocId == 'account' &&
+          isValidAccountIdentity(incoming(), userId, identityDocId) &&
+          incoming().createdAt == request.time &&
+          incoming().updatedAt == request.time &&
+          hasActiveUserRoot(userId);
+        allow update: if false;
+        allow delete: if false;
+      }
+
+      match /callsigns/{callsignId} {
+        allow get: if isVerifiedOwner(userId) && isValidId(userId) && isValidId(callsignId) && hasActiveUserRoot(userId);
+        allow list: if isVerifiedOwner(userId) && existing().ownerId == request.auth.uid;
+        allow create: if isVerifiedOwner(userId) &&
+          isValidId(userId) &&
+          isValidId(callsignId) &&
+          isValidCallsign(incoming(), userId, callsignId) &&
+          incoming().createdAt == request.time &&
+          incoming().updatedAt == request.time &&
+          hasActiveUserRoot(userId);
+        allow update: if isVerifiedOwner(userId) &&
+          isValidId(userId) &&
+          isValidId(callsignId) &&
+          isValidCallsign(incoming(), userId, callsignId) &&
+          incoming().id == existing().id &&
+          incoming().ownerId == existing().ownerId &&
+          incoming().userId == existing().userId &&
+          incoming().createdIso == existing().createdIso &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().updatedAt == request.time &&
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'displayName', 'avatar', 'isActive', 'updatedIso', 'updatedAt'
+          ]) &&
+          hasActiveUserRoot(userId);
+        allow delete: if isVerifiedOwner(userId) &&
+          isValidId(userId) &&
+          isValidId(callsignId) &&
+          existing().ownerId == request.auth.uid &&
+          hasActiveUserRoot(userId);
+      }
+
+      match /nanobots/{botId} {
+        allow get: if isVerifiedOwner(userId) && isValidId(userId) && isValidId(botId) && hasActiveUserRoot(userId);
+        allow list: if isVerifiedOwner(userId) && existing().ownerId == request.auth.uid;
+        allow create: if isVerifiedOwner(userId) &&
+          isValidId(userId) &&
+          isValidId(botId) &&
+          isValidNanobot(incoming(), userId, botId) &&
+          incoming().createdAt == request.time &&
+          incoming().updatedAt == request.time &&
+          hasActiveUserRoot(userId);
+        allow update: if isVerifiedOwner(userId) &&
+          isValidId(userId) &&
+          isValidId(botId) &&
+          isValidNanobot(incoming(), userId, botId) &&
+          incoming().id == existing().id &&
+          incoming().ownerId == existing().ownerId &&
+          incoming().userId == existing().userId &&
+          incoming().sandboxId == existing().sandboxId &&
+          incoming().consentTimestampIso == existing().consentTimestampIso &&
+          incoming().createdIso == existing().createdIso &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().updatedAt == request.time &&
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'name', 'modelId', 'taskPrompt', 'cadence', 'startTime',
+            'notificationsEnabled', 'nextRunIso', 'status', 'updatedIso', 'updatedAt'
+          ]) &&
+          hasActiveUserRoot(userId);
+        allow delete: if isVerifiedOwner(userId) &&
+          isValidId(userId) &&
+          isValidId(botId) &&
+          existing().ownerId == request.auth.uid &&
+          hasActiveUserRoot(userId);
+
+        match /runs/{runId} {
+          allow get: if isVerifiedOwner(userId) &&
+            isValidId(userId) &&
+            isValidId(botId) &&
+            isValidId(runId) &&
+            hasActiveUserRoot(userId) &&
+            exists(/databases/$(database)/documents/users/$(userId)/nanobots/$(botId));
+          allow list: if isVerifiedOwner(userId) &&
+            existing().ownerId == request.auth.uid &&
+            existing().botId == botId;
+          allow create: if isVerifiedOwner(userId) &&
+            isValidId(userId) &&
+            isValidId(botId) &&
+            isValidId(runId) &&
+            isValidNanobotRun(incoming(), userId, botId, runId) &&
+            incoming().createdAt == request.time &&
+            incoming().updatedAt == request.time &&
+            hasActiveUserRoot(userId) &&
+            exists(/databases/$(database)/documents/users/$(userId)/nanobots/$(botId));
+          allow update: if false;
+          allow delete: if isVerifiedOwner(userId) &&
+            isValidId(userId) &&
+            isValidId(botId) &&
+            isValidId(runId) &&
+            existing().ownerId == request.auth.uid &&
+            hasActiveUserRoot(userId);
+        }
+      }
+    }
+  }
+}

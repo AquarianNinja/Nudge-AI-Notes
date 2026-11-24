@@ -1,0 +1,6 @@
+{
+  "name": "Locally Nexus — Hybrid On-Device & Agentic iOS Architecture",
+  "description": "Architectural feasibility study and interactive iOS prototype uniting on-device MLX inference, NotebookLM local RAG with dual-host audio overviews, and Genspark multi-agent search.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,953 @@
+{
+  "entities": {
+    "UserProfilePublic": {
+      "title": "UserProfilePublic",
+      "description": "Public account root document establishing user workspace ownership for Master Gate checks without exposing PII.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth UID of the workspace owner.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Display name shown in the signed-in profile header.",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "photoURL": {
+          "type": "string",
+          "description": "Optional avatar URL from Google Auth.",
+          "maxLength": 512
+        },
+        "role": {
+          "type": "string",
+          "description": "Account role; locked to member on client creation.",
+          "enum": ["member"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp."
+        }
+      },
+      "required": ["uid", "displayName", "photoURL", "role", "createdAt", "updatedAt"]
+    },
+    "UserProfilePrivate": {
+      "title": "UserProfilePrivate",
+      "description": "Isolated private user PII document (email) restricted strictly to the owner.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth UID of the owner.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Verified account email address.",
+          "maxLength": 254
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp."
+        }
+      },
+      "required": ["uid", "email", "createdAt", "updatedAt"]
+    },
+    "OfficeDiaryEntryDoc": {
+      "title": "OfficeDiaryEntryDoc",
+      "description": "Daily Office Diary entry synced to Firestore per user.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique diary entry identifier.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the entry owner.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "dateIso": {
+          "type": "string",
+          "description": "Calendar ISO date (YYYY-MM-DD).",
+          "minLength": 10,
+          "maxLength": 10,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "dateLabel": {
+          "type": "string",
+          "description": "Formatted display date label.",
+          "minLength": 1,
+          "maxLength": 48
+        },
+        "timeLabel": {
+          "type": "string",
+          "description": "Formatted time label.",
+          "minLength": 1,
+          "maxLength": 24
+        },
+        "title": {
+          "type": "string",
+          "description": "Diary entry title.",
+          "minLength": 1,
+          "maxLength": 180
+        },
+        "content": {
+          "type": "string",
+          "description": "Markdown or plain-text office diary body.",
+          "minLength": 1,
+          "maxLength": 12000
+        },
+        "category": {
+          "type": "string",
+          "description": "Diary classification tag.",
+          "enum": ["Focus", "Decision", "Blocker", "Note"]
+        },
+        "tags": {
+          "type": "array",
+          "description": "Bounded tag strings (max 12)."
+        },
+        "attachmentNames": {
+          "type": "array",
+          "description": "Bounded attachment filename list (max 12)."
+        },
+        "createdIso": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO creation string.",
+          "maxLength": 40
+        },
+        "updatedIso": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO update string.",
+          "maxLength": 40
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp."
+        }
+      },
+      "required": [
+        "id",
+        "ownerId",
+        "dateIso",
+        "dateLabel",
+        "timeLabel",
+        "title",
+        "content",
+        "category",
+        "tags",
+        "attachmentNames",
+        "createdIso",
+        "updatedIso",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "BackgroundTaskDoc": {
+      "title": "BackgroundTaskDoc",
+      "description": "Scheduled continuous Cloud AI background agentic task synced per user.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Task identifier.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "Firebase Auth UID of task owner.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "title": {
+          "type": "string",
+          "description": "Short task title.",
+          "minLength": 1,
+          "maxLength": 180
+        },
+        "prompt": {
+          "type": "string",
+          "description": "Objective prompt for the background agent.",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "cloudModelId": {
+          "type": "string",
+          "description": "Selected Cloud AI model identifier.",
+          "enum": ["claude-3-7-sonnet", "gemini-2-5-pro", "gpt-4o", "grok-3"]
+        },
+        "cloudModelLabel": {
+          "type": "string",
+          "description": "Display name of Cloud AI model.",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "cloudProviderLabel": {
+          "type": "string",
+          "description": "Cloud provider label.",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "intervalId": {
+          "type": "string",
+          "description": "Schedule cadence identifier.",
+          "enum": ["15s", "1m", "5m", "hourly"]
+        },
+        "intervalLabel": {
+          "type": "string",
+          "description": "Human-readable interval label.",
+          "minLength": 1,
+          "maxLength": 48
+        },
+        "intervalMs": {
+          "type": "number",
+          "description": "Cadence interval in milliseconds."
+        },
+        "status": {
+          "type": "string",
+          "description": "Task execution state (archived is terminal).",
+          "enum": ["running", "paused", "archived"]
+        },
+        "ragEnabled": {
+          "type": "boolean",
+          "description": "Whether CoreData RAG grounding is enabled."
+        },
+        "ragStrategyId": {
+          "type": "string",
+          "description": "Active RAG retrieval strategy.",
+          "enum": ["hybrid-rrf", "agentic", "graph-rag", "corrective", "multimodal"]
+        },
+        "attachmentNames": {
+          "type": "array",
+          "description": "Bounded attachment names (max 12)."
+        },
+        "runCount": {
+          "type": "number",
+          "description": "Completed execution cycle count."
+        },
+        "createdAtIso": {
+          "type": "string",
+          "description": "ISO creation string.",
+          "maxLength": 40
+        },
+        "lastRunIso": {
+          "type": "string",
+          "description": "ISO timestamp of last execution or empty string.",
+          "maxLength": 40
+        },
+        "nextRunIso": {
+          "type": "string",
+          "description": "ISO timestamp of next scheduled execution.",
+          "maxLength": 40
+        },
+        "latestOutput": {
+          "type": "string",
+          "description": "Latest synthesized output summary.",
+          "maxLength": 16000
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp."
+        }
+      },
+      "required": [
+        "id",
+        "ownerId",
+        "title",
+        "prompt",
+        "cloudModelId",
+        "cloudModelLabel",
+        "cloudProviderLabel",
+        "intervalId",
+        "intervalLabel",
+        "intervalMs",
+        "status",
+        "ragEnabled",
+        "ragStrategyId",
+        "attachmentNames",
+        "runCount",
+        "createdAtIso",
+        "lastRunIso",
+        "nextRunIso",
+        "latestOutput",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "CoreDataDoc": {
+      "title": "CoreDataDoc",
+      "description": "Cloud-synced CoreData managed document metadata for NotebookLM and RAG retrieval.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Document ID.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "Firebase Auth UID of document owner.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "managedObjectId": {
+          "type": "string",
+          "description": "CoreData managed object URI.",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "cloudKitRecordName": {
+          "type": "string",
+          "description": "Sync record identifier.",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "entityName": {
+          "type": "string",
+          "description": "CoreData entity identifier.",
+          "enum": ["CDDocument"]
+        },
+        "title": {
+          "type": "string",
+          "description": "Document filename or title.",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "format": {
+          "type": "string",
+          "description": "Parsed document format.",
+          "enum": ["PDF", "TXT", "EPUB", "Markdown", "Image", "Audio", "Note"]
+        },
+        "assetKind": {
+          "type": "string",
+          "description": "Asset classification.",
+          "enum": ["document", "image", "audio"]
+        },
+        "sizeKB": {
+          "type": "number",
+          "description": "File size in kilobytes."
+        },
+        "chunkCount": {
+          "type": "number",
+          "description": "Vector chunk count."
+        },
+        "embeddingDim": {
+          "type": "number",
+          "description": "Embedding vector dimension."
+        },
+        "dateAdded": {
+          "type": "string",
+          "description": "Date added display string.",
+          "minLength": 1,
+          "maxLength": 48
+        },
+        "updatedIso": {
+          "type": "string",
+          "description": "ISO sync string.",
+          "maxLength": 40
+        },
+        "summary": {
+          "type": "string",
+          "description": "Document summary.",
+          "maxLength": 1500
+        },
+        "contentExcerpt": {
+          "type": "string",
+          "description": "Truncated extracted text excerpt for cross-device hydration.",
+          "maxLength": 16000
+        },
+        "tags": {
+          "type": "array",
+          "description": "Bounded document tags (max 15)."
+        },
+        "syncState": {
+          "type": "string",
+          "description": "Cloud sync status.",
+          "enum": ["synced", "local"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp."
+        }
+      },
+      "required": [
+        "id",
+        "ownerId",
+        "managedObjectId",
+        "cloudKitRecordName",
+        "entityName",
+        "title",
+        "format",
+        "assetKind",
+        "sizeKB",
+        "chunkCount",
+        "embeddingDim",
+        "dateAdded",
+        "updatedIso",
+        "summary",
+        "contentExcerpt",
+        "tags",
+        "syncState",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "UserPreferencesDoc": {
+      "title": "UserPreferencesDoc",
+      "description": "Cross-device non-secret workspace preferences synced per user.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Preferences document ID.",
+          "enum": ["app"]
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "Firebase Auth UID of preferences owner.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "activeLlmId": {
+          "type": "string",
+          "description": "Selected local LLM identifier.",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "activeWhisperId": {
+          "type": "string",
+          "description": "Selected speech transcription model identifier.",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "ttsEngine": {
+          "type": "string",
+          "description": "Audio overview synthesis mode.",
+          "enum": ["on-device", "secure-cloud"]
+        },
+        "offlineOnly": {
+          "type": "boolean",
+          "description": "Air-gapped offline toggle."
+        },
+        "motionIntensity": {
+          "type": "string",
+          "description": "Animation intensity setting.",
+          "enum": ["reduced", "standard", "fluid"]
+        },
+        "hapticFeedback": {
+          "type": "boolean",
+          "description": "Master haptic feedback toggle."
+        },
+        "diarization": {
+          "type": "boolean",
+          "description": "Speaker diarization enabled."
+        },
+        "autoPunctuation": {
+          "type": "boolean",
+          "description": "Automatic transcript punctuation enabled."
+        },
+        "language": {
+          "type": "string",
+          "description": "Primary transcription language code.",
+          "minLength": 2,
+          "maxLength": 24
+        },
+        "autoLearnDictionary": {
+          "type": "boolean",
+          "description": "Auto-learn glossary terms toggle."
+        },
+        "liveProviderId": {
+          "type": "string",
+          "description": "Selected live transcription provider.",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "localOnly": {
+          "type": "boolean",
+          "description": "Unified Local-Only firewall toggle blocking external network calls and cloud models."
+        },
+        "activeSttModelId": {
+          "type": "string",
+          "description": "Active unified Speech-to-Text model identifier.",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "activeTextModelId": {
+          "type": "string",
+          "description": "Active unified cleanup/translation LLM identifier.",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "activeDictationModeId": {
+          "type": "string",
+          "description": "Active dictation mode identifier.",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "translationEnabled": {
+          "type": "boolean",
+          "description": "Whether spoken A->B translation mode is enabled."
+        },
+        "translationSourceLang": {
+          "type": "string",
+          "description": "Source spoken language label.",
+          "minLength": 2,
+          "maxLength": 32
+        },
+        "translationTargetLang": {
+          "type": "string",
+          "description": "Target translation language label.",
+          "minLength": 2,
+          "maxLength": 32
+        },
+        "historyRetention": {
+          "type": "string",
+          "description": "Dictation history archive retention policy.",
+          "enum": ["forever", "30d", "none"]
+        },
+        "overlayStyle": {
+          "type": "string",
+          "description": "Floating dynamic-island dictation HUD presentation style.",
+          "enum": ["capsule", "panel"]
+        },
+        "enableCrewPlanner": {
+          "type": "boolean",
+          "description": "Whether Crew Planner sub-tab is enabled inside Workspace."
+        },
+        "enableOfficeDiary": {
+          "type": "boolean",
+          "description": "Whether Office Diary sub-tab is enabled inside Workspace."
+        },
+        "enableScoutFeature": {
+          "type": "boolean",
+          "description": "Whether Scout Web Search is enabled inside opened Meeting Detail screens."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp."
+        }
+      },
+      "required": [
+        "id",
+        "ownerId",
+        "activeLlmId",
+        "activeWhisperId",
+        "ttsEngine",
+        "offlineOnly",
+        "motionIntensity",
+        "hapticFeedback",
+        "diarization",
+        "autoPunctuation",
+        "language",
+        "autoLearnDictionary",
+        "liveProviderId",
+        "localOnly",
+        "activeSttModelId",
+        "activeTextModelId",
+        "activeDictationModeId",
+        "translationEnabled",
+        "translationSourceLang",
+        "translationTargetLang",
+        "historyRetention",
+        "overlayStyle",
+        "enableCrewPlanner",
+        "enableOfficeDiary",
+        "enableScoutFeature",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "AccountIdentityDoc": {
+      "title": "AccountIdentityDoc",
+      "description": "Immutable backend User ID (NB-XXXX-XXXX) mapped to Firebase Auth owner.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Fixed singleton ID.",
+          "enum": ["account"]
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the account owner.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Immutable readable NanoTeam backend User ID.",
+          "minLength": 12,
+          "maxLength": 16,
+          "pattern": "^NB-[A-Z0-9]{4}-[A-Z0-9]{4}$"
+        },
+        "linkedProvider": {
+          "type": "string",
+          "description": "Linked identity provider.",
+          "enum": ["google", "guest"]
+        },
+        "createdIso": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "ownerId", "userId", "linkedProvider", "createdIso", "createdAt", "updatedAt"]
+    },
+    "CallsignDoc": {
+      "title": "CallsignDoc",
+      "description": "User-created display identity (duplicates permitted) linked by immutable userId.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "userId": {
+          "type": "string",
+          "minLength": 12,
+          "maxLength": 16,
+          "pattern": "^NB-[A-Z0-9]{4}-[A-Z0-9]{4}$"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 48
+        },
+        "avatar": {
+          "type": "string",
+          "maxLength": 12
+        },
+        "isActive": {
+          "type": "boolean"
+        },
+        "createdIso": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "updatedIso": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "ownerId",
+        "userId",
+        "displayName",
+        "avatar",
+        "isActive",
+        "createdIso",
+        "updatedIso",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "NanobotDoc": {
+      "title": "NanobotDoc",
+      "description": "Configured Nanobot owned by immutable userId with sandboxId isolation.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "userId": {
+          "type": "string",
+          "minLength": 12,
+          "maxLength": 16,
+          "pattern": "^NB-[A-Z0-9]{4}-[A-Z0-9]{4}$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "engine": {
+          "type": "string",
+          "enum": ["pulse", "atlas", "nova"]
+        },
+        "styleId": {
+          "type": "string",
+          "enum": ["researcher", "analyst", "scheduler", "writer", "inbox-admin", "developer"]
+        },
+        "modelId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "taskPrompt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "cadence": {
+          "type": "string",
+          "enum": ["once", "daily", "weekly", "custom"]
+        },
+        "startTime": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 16
+        },
+        "notificationsEnabled": {
+          "type": "boolean"
+        },
+        "nextRunIso": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "status": {
+          "type": "string",
+          "enum": ["idle", "scheduled", "running", "paused", "stopped", "completed", "failed"]
+        },
+        "sandboxId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "consentTimestampIso": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "createdIso": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "updatedIso": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "ownerId",
+        "userId",
+        "name",
+        "engine",
+        "styleId",
+        "modelId",
+        "taskPrompt",
+        "cadence",
+        "startTime",
+        "notificationsEnabled",
+        "nextRunIso",
+        "status",
+        "sandboxId",
+        "consentTimestampIso",
+        "createdIso",
+        "updatedIso",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "NanobotRunDoc": {
+      "title": "NanobotRunDoc",
+      "description": "Execution history record strictly scoped to parent botId and owner userId.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "botId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "userId": {
+          "type": "string",
+          "minLength": 12,
+          "maxLength": 16,
+          "pattern": "^NB-[A-Z0-9]{4}-[A-Z0-9]{4}$"
+        },
+        "startedAt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "endedAt": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "status": {
+          "type": "string",
+          "enum": ["running", "completed", "failed", "stopped"]
+        },
+        "output": {
+          "type": "string",
+          "maxLength": 16000
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "botId",
+        "ownerId",
+        "userId",
+        "startedAt",
+        "endedAt",
+        "status",
+        "output",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfilePublic" },
+      "description": "Root user workspace identity document."
+    },
+    "/users/{userId}/private/{docId}": {
+      "schema": { "$ref": "#/entities/UserProfilePrivate" },
+      "description": "Isolated private PII storage for user email."
+    },
+    "/users/{userId}/diaryEntries/{entryId}": {
+      "schema": { "$ref": "#/entities/OfficeDiaryEntryDoc" },
+      "description": "User's synced Daily Office Diary entries."
+    },
+    "/users/{userId}/schedulerTasks/{taskId}": {
+      "schema": { "$ref": "#/entities/BackgroundTaskDoc" },
+      "description": "User's synced background agentic scheduler tasks."
+    },
+    "/users/{userId}/coreDataDocuments/{docId}": {
+      "schema": { "$ref": "#/entities/CoreDataDoc" },
+      "description": "User's synced CoreData indexed document metadata and excerpts."
+    },
+    "/users/{userId}/preferences/{prefId}": {
+      "schema": { "$ref": "#/entities/UserPreferencesDoc" },
+      "description": "User's synced workspace preferences (non-secret)."
+    },
+    "/users/{userId}/identity/{identityDocId}": {
+      "schema": { "$ref": "#/entities/AccountIdentityDoc" },
+      "description": "Immutable NB-XXXX-XXXX userId record."
+    },
+    "/users/{userId}/callsigns/{callsignId}": {
+      "schema": { "$ref": "#/entities/CallsignDoc" },
+      "description": "User's Callsign display identities."
+    },
+    "/users/{userId}/nanobots/{botId}": {
+      "schema": { "$ref": "#/entities/NanobotDoc" },
+      "description": "User's isolated NanoTeam Nanobots."
+    },
+    "/users/{userId}/nanobots/{botId}/runs/{runId}": {
+      "schema": { "$ref": "#/entities/NanobotRunDoc" },
+      "description": "Per-Nanobot execution run history."
+    }
+  }
+}
